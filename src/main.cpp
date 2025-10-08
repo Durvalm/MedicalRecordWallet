@@ -9,6 +9,9 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QTextEdit>
+#include <QMessageBox>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QFont>
 #include <QPalette>
 #include <QStyleFactory>
@@ -29,7 +32,6 @@ private:
     QPushButton *uploadButton;
     QPushButton *viewButton;
     QPushButton *deleteButton;
-    QPushButton *refreshButton;
     QGroupBox *fileListGroup;
     QListWidget *fileListWidget;
     QLabel *fileCountLabel;
@@ -41,6 +43,7 @@ public:
     MedicalRecordWallet(QWidget *parent = nullptr) : QMainWindow(parent)
     {
         setupUI();
+        setupConnections();
         applyBasicStyle();
         
         // Set window properties
@@ -100,13 +103,9 @@ private:
         deleteButton = new QPushButton("🗑️ Delete File");
         deleteButton->setStyleSheet("QPushButton { background-color: #e74c3c; color: white; border: none; padding: 12px 20px; border-radius: 5px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #c0392b; } QPushButton:pressed { background-color: #a93226; }");
         
-        refreshButton = new QPushButton("🔄 Refresh");
-        refreshButton->setStyleSheet("QPushButton { background-color: #f39c12; color: white; border: none; padding: 12px 20px; border-radius: 5px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #e67e22; } QPushButton:pressed { background-color: #d35400; }");
-        
         buttonLayout->addWidget(uploadButton);
         buttonLayout->addWidget(viewButton);
         buttonLayout->addWidget(deleteButton);
-        buttonLayout->addWidget(refreshButton);
         buttonLayout->addStretch();
         
         mainLayout->addWidget(fileGroup);
@@ -154,6 +153,14 @@ private:
         mainLayout->addLayout(fileSectionLayout);
     }
     
+    void setupConnections()
+    {
+        connect(uploadButton, &QPushButton::clicked, this, &MedicalRecordWallet::uploadFile);
+        connect(viewButton, &QPushButton::clicked, this, &MedicalRecordWallet::viewFile);
+        connect(deleteButton, &QPushButton::clicked, this, &MedicalRecordWallet::deleteFile);
+        connect(fileListWidget, &QListWidget::itemSelectionChanged, this, &MedicalRecordWallet::onFileSelectionChanged);
+    }
+    
     void applyBasicStyle()
     {
         // Set application style
@@ -172,6 +179,74 @@ private:
         
         // Set main window background
         setStyleSheet("QMainWindow { background-color: #ecf0f1; }");
+    }
+
+private slots:
+    void uploadFile()
+    {
+        QString fileName = QFileDialog::getOpenFileName(this, "Select Medical Record File", "", "All Files (*.*)");
+        if (!fileName.isEmpty()) {
+            QFileInfo fileInfo(fileName);
+            QListWidgetItem *item = new QListWidgetItem();
+            item->setText(fileInfo.fileName());
+            item->setData(Qt::UserRole, fileName);
+            fileListWidget->addItem(item);
+            
+            int count = fileListWidget->count();
+            fileCountLabel->setText(QString("Total files: %1").arg(count));
+        }
+    }
+    
+    void viewFile()
+    {
+        QListWidgetItem *currentItem = fileListWidget->currentItem();
+        if (!currentItem) {
+            QMessageBox::information(this, "No Selection", "Please select a file to view.");
+            return;
+        }
+        
+        QString fileName = currentItem->data(Qt::UserRole).toString();
+        QFileInfo fileInfo(fileName);
+        
+        if (fileInfo.exists()) {
+            QFile file(fileName);
+            if (file.open(QIODevice::ReadOnly)) {
+                QByteArray data = file.readAll();
+                filePreview->setPlainText(QString::fromUtf8(data));
+                fileInfoLabel->setText(QString("File: %1 (%2 bytes)").arg(fileInfo.fileName()).arg(fileInfo.size()));
+            }
+        } else {
+            // For uploaded files that might not exist anymore, show placeholder
+            filePreview->setPlainText("File content preview not available.\n\nThis file was uploaded but the original file may no longer be accessible.");
+            fileInfoLabel->setText(QString("File: %1 (Preview unavailable)").arg(currentItem->text()));
+        }
+    }
+    
+    void deleteFile()
+    {
+        QListWidgetItem *currentItem = fileListWidget->currentItem();
+        if (!currentItem) {
+            QMessageBox::information(this, "No Selection", "Please select a file to delete.");
+            return;
+        }
+        
+        int ret = QMessageBox::question(this, "Delete File", "Are you sure you want to delete this file?", QMessageBox::Yes | QMessageBox::No);
+        if (ret == QMessageBox::Yes) {
+            delete fileListWidget->takeItem(fileListWidget->row(currentItem));
+            
+            int count = fileListWidget->count();
+            fileCountLabel->setText(count > 0 ? QString("Total files: %1").arg(count) : "No files stored.");
+        }
+    }
+    
+    void onFileSelectionChanged()
+    {
+        QListWidgetItem *currentItem = fileListWidget->currentItem();
+        if (currentItem) {
+            fileInfoLabel->setText("Selected: " + currentItem->text());
+        } else {
+            fileInfoLabel->setText("Select a file to view details");
+        }
     }
 };
 
