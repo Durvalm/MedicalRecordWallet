@@ -4,6 +4,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QWidget>
+#include <QPushButton>
+#include <QGroupBox>
 #include <QFont>
 #include <QPalette>
 #include <QStyleFactory>
@@ -16,8 +18,14 @@ private:
     QWidget *centralWidget;
     QVBoxLayout *mainLayout;
     QHBoxLayout *headerLayout;
+    QHBoxLayout *buttonLayout;
     QLabel *appTitle;
     QLabel *appSubtitle;
+    QGroupBox *fileGroup;
+    QPushButton *uploadButton;
+    QPushButton *viewButton;
+    QPushButton *deleteButton;
+    QPushButton *refreshButton;
 
 public:
     MedicalRecordWallet(QWidget *parent = nullptr) : QMainWindow(parent)
@@ -41,6 +49,7 @@ private:
         mainLayout->setContentsMargins(20, 20, 20, 20);
         
         createHeaderSection();
+        createFileManagementSection();
     }
     
     void createHeaderSection()
@@ -62,6 +71,34 @@ private:
         headerLayout->addStretch();
         
         mainLayout->addLayout(headerLayout);
+    }
+    
+    void createFileManagementSection()
+    {
+        fileGroup = new QGroupBox("File Management");
+        fileGroup->setStyleSheet("QGroupBox { font-weight: bold; border: 2px solid #bdc3c7; border-radius: 5px; margin-top: 10px; padding-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }");
+        
+        buttonLayout = new QHBoxLayout(fileGroup);
+        
+        uploadButton = new QPushButton("📁 Upload / Encrypt File");
+        uploadButton->setStyleSheet("QPushButton { background-color: #27ae60; color: white; border: none; padding: 12px 20px; border-radius: 5px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #229954; } QPushButton:pressed { background-color: #1e8449; }");
+        
+        viewButton = new QPushButton("👁️ View / Decrypt File");
+        viewButton->setStyleSheet("QPushButton { background-color: #3498db; color: white; border: none; padding: 12px 20px; border-radius: 5px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #2980b9; } QPushButton:pressed { background-color: #21618c; }");
+        
+        deleteButton = new QPushButton("🗑️ Delete File");
+        deleteButton->setStyleSheet("QPushButton { background-color: #e74c3c; color: white; border: none; padding: 12px 20px; border-radius: 5px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #c0392b; } QPushButton:pressed { background-color: #a93226; }");
+        
+        refreshButton = new QPushButton("🔄 Refresh");
+        refreshButton->setStyleSheet("QPushButton { background-color: #f39c12; color: white; border: none; padding: 12px 20px; border-radius: 5px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #e67e22; } QPushButton:pressed { background-color: #d35400; }");
+        
+        buttonLayout->addWidget(uploadButton);
+        buttonLayout->addWidget(viewButton);
+        buttonLayout->addWidget(deleteButton);
+        buttonLayout->addWidget(refreshButton);
+        buttonLayout->addStretch();
+        
+        mainLayout->addWidget(fileGroup);
     }
     
     void applyBasicStyle()
