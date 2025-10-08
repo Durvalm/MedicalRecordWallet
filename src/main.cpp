@@ -15,6 +15,8 @@
 #include <QFont>
 #include <QPalette>
 #include <QStyleFactory>
+#include <QDesktopServices>
+#include <QUrl>
 
 class MedicalRecordWallet : public QMainWindow
 {
@@ -209,16 +211,37 @@ private slots:
         QFileInfo fileInfo(fileName);
         
         if (fileInfo.exists()) {
-            QFile file(fileName);
-            if (file.open(QIODevice::ReadOnly)) {
-                QByteArray data = file.readAll();
-                filePreview->setPlainText(QString::fromUtf8(data));
-                fileInfoLabel->setText(QString("File: %1 (%2 bytes)").arg(fileInfo.fileName()).arg(fileInfo.size()));
+            // Open the file with the system's default application
+            bool success = QDesktopServices::openUrl(QUrl::fromLocalFile(fileName));
+            
+            if (success) {
+                fileInfoLabel->setText(QString("File: %1 (%2 bytes) - Opened with default application").arg(fileInfo.fileName()).arg(fileInfo.size()));
+                filePreview->setPlainText(QString("File opened with default application.\n\n"
+                                                "File: %1\n"
+                                                "Size: %2 bytes\n"
+                                                "Type: %3 file\n\n"
+                                                "The file should have opened in your default application for this file type.")
+                                                .arg(fileInfo.fileName())
+                                                .arg(fileInfo.size())
+                                                .arg(fileInfo.suffix().toUpper()));
+            } else {
+                QMessageBox::warning(this, "Error", "Could not open the file. The file may not exist or there may be no default application associated with this file type.");
+                fileInfoLabel->setText(QString("File: %1 (%2 bytes) - Failed to open").arg(fileInfo.fileName()).arg(fileInfo.size()));
+                filePreview->setPlainText(QString("Failed to open file with default application.\n\n"
+                                                "File: %1\n"
+                                                "Size: %2 bytes\n"
+                                                "Type: %3 file\n\n"
+                                                "Please check if the file exists and if you have a default application installed for this file type.")
+                                                .arg(fileInfo.fileName())
+                                                .arg(fileInfo.size())
+                                                .arg(fileInfo.suffix().toUpper()));
             }
         } else {
-            // For uploaded files that might not exist anymore, show placeholder
-            filePreview->setPlainText("File content preview not available.\n\nThis file was uploaded but the original file may no longer be accessible.");
-            fileInfoLabel->setText(QString("File: %1 (Preview unavailable)").arg(currentItem->text()));
+            QMessageBox::warning(this, "File Not Found", "The selected file no longer exists at the original location.");
+            fileInfoLabel->setText(QString("File: %1 - Not found").arg(currentItem->text()));
+            filePreview->setPlainText(QString("File not found.\n\n"
+                                            "The file was uploaded but the original file may have been moved or deleted.\n"
+                                            "File: %1").arg(currentItem->text()));
         }
     }
     
