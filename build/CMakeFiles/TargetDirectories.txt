@@ -1,0 +1,5 @@
+/Users/Durval/Developer/MedicalRecordWalletApp/build/CMakeFiles/MedicalRecordWalletApp.dir
+/Users/Durval/Developer/MedicalRecordWalletApp/build/CMakeFiles/edit_cache.dir
+/Users/Durval/Developer/MedicalRecordWalletApp/build/CMakeFiles/rebuild_cache.dir
+/Users/Durval/Developer/MedicalRecordWalletApp/build/CMakeFiles/MedicalRecordWalletApp_autogen_timestamp_deps.dir
+/Users/Durval/Developer/MedicalRecordWalletApp/build/CMakeFiles/MedicalRecordWalletApp_autogen.dir

@@ -1,0 +1,2 @@
+set(__QT_DEPLOY_TARGET_MedicalRecordWalletApp_FILE /Users/Durval/Developer/MedicalRecordWalletApp/build/MedicalRecordWalletApp)
+set(__QT_DEPLOY_TARGET_MedicalRecordWalletApp_TYPE EXECUTABLE)
