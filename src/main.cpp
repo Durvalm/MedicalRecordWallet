@@ -6,6 +6,8 @@
 #include <QWidget>
 #include <QPushButton>
 #include <QGroupBox>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QFont>
 #include <QPalette>
 #include <QStyleFactory>
@@ -19,6 +21,7 @@ private:
     QVBoxLayout *mainLayout;
     QHBoxLayout *headerLayout;
     QHBoxLayout *buttonLayout;
+    QVBoxLayout *fileListLayout;
     QLabel *appTitle;
     QLabel *appSubtitle;
     QGroupBox *fileGroup;
@@ -26,6 +29,9 @@ private:
     QPushButton *viewButton;
     QPushButton *deleteButton;
     QPushButton *refreshButton;
+    QGroupBox *fileListGroup;
+    QListWidget *fileListWidget;
+    QLabel *fileCountLabel;
 
 public:
     MedicalRecordWallet(QWidget *parent = nullptr) : QMainWindow(parent)
@@ -50,6 +56,7 @@ private:
         
         createHeaderSection();
         createFileManagementSection();
+        createFileListSection();
     }
     
     void createHeaderSection()
@@ -99,6 +106,25 @@ private:
         buttonLayout->addStretch();
         
         mainLayout->addWidget(fileGroup);
+    }
+    
+    void createFileListSection()
+    {
+        fileListGroup = new QGroupBox("Encrypted Files");
+        fileListGroup->setStyleSheet("QGroupBox { font-weight: bold; border: 2px solid #bdc3c7; border-radius: 5px; margin-top: 10px; padding-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }");
+        
+        fileListLayout = new QVBoxLayout(fileListGroup);
+        
+        fileListWidget = new QListWidget();
+        fileListWidget->setStyleSheet("QListWidget { border: 1px solid #bdc3c7; border-radius: 4px; background-color: #ecf0f1; } QListWidget::item { padding: 8px; border-bottom: 1px solid #bdc3c7; } QListWidget::item:selected { background-color: #3498db; color: white; } QListWidget::item:hover { background-color: #d5dbdb; }");
+        
+        fileCountLabel = new QLabel("No files stored.");
+        fileCountLabel->setStyleSheet("color: #7f8c8d; font-style: italic; margin: 10px;");
+        
+        fileListLayout->addWidget(fileListWidget);
+        fileListLayout->addWidget(fileCountLabel);
+        
+        mainLayout->addWidget(fileListGroup);
     }
     
     void applyBasicStyle()
