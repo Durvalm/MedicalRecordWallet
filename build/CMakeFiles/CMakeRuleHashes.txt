@@ -1,3 +1,0 @@
-# Hashes of file build rules.
-505a7f24e24f92448ee8847cfbbb37a5 CMakeFiles/MedicalRecordWalletApp_autogen
-f9fd10da7e8ea1514a7ed4ce921b9e96 MedicalRecordWalletApp_autogen/timestamp
