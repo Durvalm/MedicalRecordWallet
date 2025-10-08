@@ -8,6 +8,7 @@
 #include <QGroupBox>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QTextEdit>
 #include <QFont>
 #include <QPalette>
 #include <QStyleFactory>
@@ -32,6 +33,9 @@ private:
     QGroupBox *fileListGroup;
     QListWidget *fileListWidget;
     QLabel *fileCountLabel;
+    QGroupBox *previewGroup;
+    QTextEdit *filePreview;
+    QLabel *fileInfoLabel;
 
 public:
     MedicalRecordWallet(QWidget *parent = nullptr) : QMainWindow(parent)
@@ -41,8 +45,8 @@ public:
         
         // Set window properties
         setWindowTitle("Medical Records Wallet - Secure File Encryption");
-        setMinimumSize(600, 400);
-        resize(800, 500);
+        setMinimumSize(800, 600);
+        resize(1000, 700);
     }
 
 private:
@@ -110,6 +114,9 @@ private:
     
     void createFileListSection()
     {
+        QHBoxLayout *fileSectionLayout = new QHBoxLayout();
+        
+        // File List Group
         fileListGroup = new QGroupBox("Encrypted Files");
         fileListGroup->setStyleSheet("QGroupBox { font-weight: bold; border: 2px solid #bdc3c7; border-radius: 5px; margin-top: 10px; padding-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }");
         
@@ -124,7 +131,27 @@ private:
         fileListLayout->addWidget(fileListWidget);
         fileListLayout->addWidget(fileCountLabel);
         
-        mainLayout->addWidget(fileListGroup);
+        // File Preview Group
+        previewGroup = new QGroupBox("File Preview");
+        previewGroup->setStyleSheet("QGroupBox { font-weight: bold; border: 2px solid #bdc3c7; border-radius: 5px; margin-top: 10px; padding-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }");
+        
+        QVBoxLayout *previewLayout = new QVBoxLayout(previewGroup);
+        
+        fileInfoLabel = new QLabel("Select a file to view details");
+        fileInfoLabel->setStyleSheet("color: #7f8c8d; font-style: italic; margin: 5px;");
+        
+        filePreview = new QTextEdit();
+        filePreview->setReadOnly(true);
+        filePreview->setStyleSheet("QTextEdit { border: 1px solid #bdc3c7; border-radius: 4px; background-color: #f8f9fa; font-family: 'Courier New', monospace; }");
+        filePreview->setPlaceholderText("File content will appear here when you select a file...");
+        
+        previewLayout->addWidget(fileInfoLabel);
+        previewLayout->addWidget(filePreview);
+        
+        fileSectionLayout->addWidget(fileListGroup, 1);
+        fileSectionLayout->addWidget(previewGroup, 1);
+        
+        mainLayout->addLayout(fileSectionLayout);
     }
     
     void applyBasicStyle()
