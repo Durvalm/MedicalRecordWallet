@@ -1,3 +1,56 @@
+# Medical Record Wallet App - Quick Setup
+
+## Prerequisites
+
+- **C++ Compiler** (Xcode on macOS, GCC on Linux, Visual Studio on Windows)
+- **CMake 3.16+**
+- **Qt6**
+
+## Installation
+
+### macOS
+
+```bash
+brew install cmake qt6
+```
+
+### Windows
+
+- Install Visual Studio 2019+
+- Download Qt6 from [qt.io](https://www.qt.io/download)
+- Install CMake from [cmake.org](https://cmake.org/download/)
+
+## Build & Run
+
+```bash
+# Clone and build
+git clone https://github.com/Durvalm/MedicalRecordWalletApp.git
+cd MedicalRecordWalletApp
+mkdir build && cd build
+
+# Configure (add Qt6 path if needed)
+cmake ..
+
+# Build
+cmake --build .
+
+# Run
+./MedicalRecordWalletApp  # macOS/Linux
+# or
+MedicalRecordWalletApp.exe  # Windows
+```
+
+## Troubleshooting
+
+**CMake can't find Qt6?**
+
+- macOS: `cmake .. -DCMAKE_PREFIX_PATH=/opt/homebrew/lib/cmake/Qt6`
+- Windows: `cmake .. -DCMAKE_PREFIX_PATH="C:/Qt/6.x.x/msvc2019_64/lib/cmake/Qt6"`
+
+**Still having issues?** honestly, use ChatGpt, if there's any issue where the compiler can't find the libraries, it's kinda difficult to troubleshoot
+
+---
+
 ## Project Architecture: Medical Record Wallet 🧬
 
 ---
@@ -31,38 +84,20 @@ The system uses a hybrid approach to combine the speed of symmetric encryption w
 
 ---
 
-### 3. Code & System Architecture
+## Requirements from the professor
 
-This architecture outlines the primary modules and data structure for the application.
-
-- **Main Classes/Modules**:
-
-  - `CryptoManager`: Handles all cryptographic operations (RSA/AES key generation, encryption, decryption).
-  - `UserManager`: Manages user creation, authentication, and loading of user keys.
-  - `FileManager`: Manages file uploads, downloads, and the orchestration of the encryption/decryption workflow.
-  - `GUIController`: Manages user interactions from the graphical interface.
-
-- **Data Storage Structure**: A local directory structure will be used to manage user data.
-  ```
-  MedicalWallet/
-  └── users/
-      └── [user_id]/
-          ├── keypair.pem (encrypted private key)
-          ├── public.pem
-          └── records/
-              ├── record1.enc (encrypted file)
-              ├── record1.key (RSA-encrypted AES key)
-              └── record1.meta (filename, timestamp, etc.)
-  ```
+Implement a hybrid cryptographic scheme (both private-key and public-key) using a programming language that you are comfortable with.
 
 ---
 
-### 4. Implementation & Security
+## Guideline:
 
-- **Language & Libraries**: The project will be implemented in **C++** using the **Crypto++** library for cryptographic functions and **Qt** for the graphical user interface.
+1.  You may use existing crypto packages for some parts, e.g., to generate large primes.
 
-- **Security Best Practices**:
-  - Use a cryptographically secure random number generator for all keys.
-  - Implement **OAEP padding** for all RSA encryption.
-  - Use an authenticated encryption mode like **AES-GCM** to prevent tampering with encrypted records.
-  - Securely clear all sensitive data (keys, plaintext files) from memory after use.
+2.  It is better to use **C++** or **Java** for this program; e.g., you can use the **Crypto++ Library**.
+
+3.  The minimum size of your numbers should be **256 bits**.
+
+4.  It would be great if you create a **GUI** (Graphical User Interface) for your program.
+
+5.  Finally, prepare a one-page description regarding the architecture of your code.
