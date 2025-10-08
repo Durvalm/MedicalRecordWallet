@@ -929,9 +929,6 @@ CMakeFiles/MedicalRecordWalletApp.dir/src/main.cpp.o: \
   /usr/local/include/QtWidgets/qboxlayout.h \
   /usr/local/include/QtWidgets/qgridlayout.h \
   /usr/local/lib/QtWidgets.framework/Headers/QHBoxLayout \
-  /usr/local/lib/QtWidgets.framework/Headers/QPushButton \
-  /usr/local/lib/QtWidgets.framework/Headers/qpushbutton.h \
-  /usr/local/include/QtWidgets/qabstractbutton.h \
   /usr/local/lib/QtWidgets.framework/Headers/QLabel \
   /usr/local/lib/QtWidgets.framework/Headers/qlabel.h \
   /usr/local/include/QtWidgets/qframe.h \
@@ -941,10 +938,12 @@ CMakeFiles/MedicalRecordWalletApp.dir/src/main.cpp.o: \
   /usr/local/include/QtCore/qurl.h \
   /usr/local/lib/QtWidgets.framework/Headers/QWidget \
   /usr/local/lib/QtWidgets.framework/Headers/qwidget.h \
-  /usr/local/lib/QtWidgets.framework/Headers/QMessageBox \
-  /usr/local/lib/QtWidgets.framework/Headers/qmessagebox.h \
-  /usr/local/include/QtWidgets/qdialog.h \
-  /usr/local/include/QtWidgets/qdialogbuttonbox.h \
+  /usr/local/lib/QtGui.framework/Headers/QFont \
+  /usr/local/lib/QtGui.framework/Headers/qfont.h \
+  /usr/local/lib/QtGui.framework/Headers/QPalette \
+  /usr/local/lib/QtGui.framework/Headers/qpalette.h \
+  /usr/local/lib/QtWidgets.framework/Headers/QStyleFactory \
+  /usr/local/lib/QtWidgets.framework/Headers/qstylefactory.h \
   /Users/Durval/Developer/MedicalRecordWalletApp/build/MedicalRecordWalletApp_autogen/include/main.moc \
   /usr/local/include/QtCore/qtmochelpers.h \
   /usr/local/include/QtCore/qtmocconstants.h \

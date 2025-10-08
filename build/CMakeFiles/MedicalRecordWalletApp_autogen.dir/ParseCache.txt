@@ -827,6 +827,8 @@
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qversiontagging.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qxptype_traits.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtCore.framework/Versions/A/Headers/qyieldcpu.h
+ mdp:/usr/local/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QFont
+ mdp:/usr/local/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/QPalette
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qaction.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qbitmap.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtGui.framework/Versions/A/Headers/qbrush.h
@@ -861,24 +863,19 @@
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QHBoxLayout
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QLabel
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QMainWindow
- mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QMessageBox
- mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QPushButton
+ mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QStyleFactory
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QVBoxLayout
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/QWidget
- mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qabstractbutton.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qapplication.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qboxlayout.h
- mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qdialog.h
- mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qdialogbuttonbox.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qframe.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qgridlayout.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qlabel.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qlayout.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qlayoutitem.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qmainwindow.h
- mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qmessagebox.h
- mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qpushbutton.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qsizepolicy.h
+ mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qstylefactory.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qtabwidget.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qtwidgets-config.h
  mdp:/usr/local/Cellar/qt/6.9.2/lib/QtWidgets.framework/Versions/A/Headers/qtwidgetsexports.h
