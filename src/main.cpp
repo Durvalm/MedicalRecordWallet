@@ -17,6 +17,7 @@
 #include <QStyleFactory>
 #include <QDesktopServices>
 #include <QUrl>
+#include "LoginDialog.h"
 
 class MedicalRecordWallet : public QMainWindow
 {
@@ -282,6 +283,14 @@ int main(int argc, char *argv[])
     app.setApplicationVersion("1.0");
     app.setOrganizationName("Medical Records Inc.");
     
+    //Show login dialog Before Opening Main window
+    LoginDialog loginDialog;
+    if (loginDialog.exec() != QDialog::Accepted){
+        return 0; //user cancelled or closed the dialog
+    }
+
+    QString sessionPassword = loginDialog.password();
+
     MedicalRecordWallet window;
     window.show();
     
