@@ -44,10 +44,12 @@ private:
     QGroupBox *previewGroup;
     QTextEdit *filePreview;
     QLabel *fileInfoLabel;
+    QString sessionPassword;
 
 public:
-    MedicalRecordWallet(QWidget *parent = nullptr) : QMainWindow(parent)
+    MedicalRecordWallet(const QString& password, QWidget *parent = nullptr) : QMainWindow(parent)
     {
+        sessionPassword = password;
         setupUI();
         setupConnections();
         applyBasicStyle();
@@ -304,7 +306,7 @@ int main(int argc, char *argv[])
     QString sessionPassword = loginDialog.password();
     // Now you can use sessionPassword for encryption/decryption operations
 
-    MedicalRecordWallet window;
+    MedicalRecordWallet window(sessionPassword);
     window.show();
     
     return app.exec();
