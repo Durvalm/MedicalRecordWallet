@@ -18,6 +18,9 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include "LoginDialog.h"
+#include <QStandardPaths>
+#include <QDir>
+#include <QFile>
 
 class MedicalRecordWallet : public QMainWindow
 {
@@ -283,13 +286,23 @@ int main(int argc, char *argv[])
     app.setApplicationVersion("1.0");
     app.setOrganizationName("Medical Records Inc.");
     
-    //Show login dialog Before Opening Main window
-    LoginDialog loginDialog;
-    if (loginDialog.exec() != QDialog::Accepted){
-        return 0; //user cancelled or closed the dialog
+    // Check if this is first run (no password hash exists)
+    QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir dir(appDataDir);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    QString hashFile = appDataDir + "/password.hash";
+    bool isFirstRun = !QFile::exists(hashFile);
+
+    // Show login dialog
+    LoginDialog loginDialog(isFirstRun);
+    if (loginDialog.exec() != QDialog::Accepted) {
+        return 0; // User cancelled or closed the dialog
     }
 
     QString sessionPassword = loginDialog.password();
+    // Now you can use sessionPassword for encryption/decryption operations
 
     MedicalRecordWallet window;
     window.show();
