@@ -18,6 +18,9 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include "LoginDialog.h"
+#include "CryptoService.h"
+#include <QDir>
+#include <QCoreApplication>
 
 class MedicalRecordWallet : public QMainWindow
 {
@@ -41,6 +44,7 @@ private:
     QGroupBox *previewGroup;
     QTextEdit *filePreview;
     QLabel *fileInfoLabel;
+    CryptoService cryptoService; // gives GUI access to the encryption engine
 
 public:
     MedicalRecordWallet(QWidget *parent = nullptr) : QMainWindow(parent)
@@ -187,17 +191,43 @@ private:
 private slots:
     void uploadFile()
     {
-        QString fileName = QFileDialog::getOpenFileName(this, "Select Medical Record File", "", "All Files (*.*)");
-        if (!fileName.isEmpty()) {
-            QFileInfo fileInfo(fileName);
-            QListWidgetItem *item = new QListWidgetItem();
-            item->setText(fileInfo.fileName());
-            item->setData(Qt::UserRole, fileName);
-            fileListWidget->addItem(item);
-            
-            int count = fileListWidget->count();
-            fileCountLabel->setText(QString("Total files: %1").arg(count));
+        QString inputPath = QFileDialog::getOpenFileName(this, "Select Medical Record File", "", "All Files (*.*)");
+        if (inputPath.isEmpty()) {
+            return;
         }
+        QFileInfo fileInfo(inputPath);
+
+        //Decides where encrypted files will be stored
+        QDir walletDir(QDir::homePath() + "/MedicalWalletEncrypted");
+        if (!walletDir.exists()){
+            walletDir.mkpath(".");
+        }
+        //Encrypted output file path
+        QString outputPath = walletDir.filePath(fileInfo.fileName() + ".enc");
+
+        //Path to the RSA public key
+        QString publicKeyPath = QCoreApplication::applicationDirPath() + "/public_key.pem";
+
+        //calling CryptoService to encrypt
+        bool ok = cryptoService.encryptFile(inputPath, outputPath, publicKeyPath);
+
+        if (!ok){
+            QMessageBox::warning(this, "Encryption Failed",
+                                "Could not encrypt this selected file.");
+            return;
+        }
+
+        //On success, add the encrypted file to the list
+        QListWidgetItem *item = new QListWidgetItem();
+        item->setText(fileInfo.fileName() + " (encrypted)");
+        item->setData(Qt::UserRole, outputPath); // store encrypted file path
+        fileListWidget->addItem(item);
+
+        int count = fileListWidget->count();
+        fileCountLabel->setText(QString("Total encrypted files: %1").arg(count));
+
+        QMessageBox::information(this, "Success",
+                                "File encrypted and stored in your wallet.");
     }
     
     void viewFile()
