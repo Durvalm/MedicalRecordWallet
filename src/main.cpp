@@ -47,11 +47,10 @@ private:
     QGroupBox *previewGroup;
     QTextEdit *filePreview;
     QLabel *fileInfoLabel;
-<<<<<<< HEAD
+
     CryptoService cryptoService; // gives GUI access to the encryption engine
-=======
-    QString sessionPassword;
->>>>>>> upstream/main
+    QString sessionPassword;     // stores the password for this session
+
 
 public:
     MedicalRecordWallet(const QString& password, QWidget *parent = nullptr) : QMainWindow(parent)
@@ -216,14 +215,17 @@ private slots:
         //Path to the RSA public key
         QString publicKeyPath = QCoreApplication::applicationDirPath() + "/public_key.pem";
 
-        //calling CryptoService to encrypt
-        bool ok = cryptoService.encryptFile(inputPath, outputPath, publicKeyPath);
-
-        if (!ok){
-            QMessageBox::warning(this, "Encryption Failed",
-                                "Could not encrypt this selected file.");
-            return;
-        }
+       
+       
+	//calling CryptoService to encrypt
+	QString error = cryptoService.encryptFile(inputPath, outputPath, publicKeyPath);
+	 
+	//If CryptoService returns a non-empty string, treat it as an error message
+	
+	if (!error.isEmpty()) {
+    		QMessageBox::warning(this, "Encryption Failed", error);
+    		return;
+}
 
         //On success, add the encrypted file to the list
         QListWidgetItem *item = new QListWidgetItem();
