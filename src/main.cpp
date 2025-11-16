@@ -204,30 +204,23 @@ private slots:
         }
         QFileInfo fileInfo(inputPath);
 
-        //Decides where encrypted files will be stored
-        QDir walletDir(QDir::homePath() + "/MedicalWalletEncrypted");
-        if (!walletDir.exists()){
-            walletDir.mkpath(".");
+        // Use standard application data directory for storage
+        QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QDir dir(appDataDir);
+        if (!dir.exists()) {
+            dir.mkpath(".");
         }
-        //Encrypted output file path
-        QString outputPath = walletDir.filePath(fileInfo.fileName() + ".enc");
 
-        //Path to the RSA public key
-        QString publicKeyPath = QCoreApplication::applicationDirPath() + "/public_key.pem";
+        // Call CryptoService to encrypt (it handles file creation and returns output path)
+        QString outputPath = CryptoService::encryptFile(inputPath, sessionPassword, appDataDir);
+        
+        // If CryptoService returns empty string, encryption failed
+        if (outputPath.isEmpty()) {
+            QMessageBox::warning(this, "Encryption Failed", "Failed to encrypt file. Please check that RSA keys exist.");
+            return;
+        }
 
-       
-       
-	//calling CryptoService to encrypt
-	QString error = cryptoService.encryptFile(inputPath, outputPath, publicKeyPath);
-	 
-	//If CryptoService returns a non-empty string, treat it as an error message
-	
-	if (!error.isEmpty()) {
-    		QMessageBox::warning(this, "Encryption Failed", error);
-    		return;
-}
-
-        //On success, add the encrypted file to the list
+        // On success, add the encrypted file to the list
         QListWidgetItem *item = new QListWidgetItem();
         item->setText(fileInfo.fileName() + " (encrypted)");
         item->setData(Qt::UserRole, outputPath); // store encrypted file path
