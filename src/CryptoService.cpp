@@ -13,6 +13,8 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #include <openssl/rsa.h>
+#include <openssl/pkcs12.h>
+#include <openssl/bio.h>
 
 static QString b64(const QByteArray& x) { return QString::fromLatin1(x.toBase64()); }
 
@@ -33,8 +35,8 @@ QString CryptoService::encryptFile(const QString& inputPath,
     QByteArray ct, tag;
     if (!aesGcmEncrypt(plain, aesKey, nonce, ct, tag)) return {};
 
-    // 4) Load RSA public key from projectRoot/keys/public.pem
-    const QString pubPath = QDir(projectRoot).filePath("keys/public.pem");
+    // 4) Load RSA public key from projectRoot/.medical_wallet_keys/rsa_public_key.pem
+    const QString pubPath = QDir(projectRoot).filePath(".medical_wallet_keys/rsa_public_key.pem");
     void* evpPub = nullptr;
     if (!loadPublicKey(pubPath, &evpPub)) return {};
 
@@ -194,4 +196,205 @@ bool CryptoService::writeAll(const QString& path, const QByteArray& data) {
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly)) return false;
     return f.write(data) == data.size();
+}
+
+// Check if RSA keys already exist
+bool CryptoService::keysExist(const QString& keyDir) {
+    QDir dir(keyDir);
+    if (!dir.exists()) {
+        return false;
+    }
+    
+    QString pubKeyPath = dir.filePath("rsa_public_key.pem");
+    QString privKeyPath = dir.filePath("rsa_private_key.enc");
+    
+    return QFile::exists(pubKeyPath) && QFile::exists(privKeyPath);
+}
+
+// Derive encryption key from password using PBKDF2
+QByteArray CryptoService::deriveKeyFromPassword(const QString& password, const QByteArray& salt) {
+    QByteArray key(32, 0); // 32 bytes = 256 bits for AES-256
+    
+    if (PKCS5_PBKDF2_HMAC(
+            password.toUtf8().constData(), password.length(),
+            reinterpret_cast<const unsigned char*>(salt.constData()), salt.size(),
+            100000, // 100k iterations (good security)
+            EVP_sha256(),
+            32, // key length
+            reinterpret_cast<unsigned char*>(key.data())) != 1) {
+        return QByteArray(); // Return empty on failure
+    }
+    
+    return key;
+}
+
+// Encrypt private key with password-derived key
+bool CryptoService::encryptPrivateKeyWithPassword(void* evpPrivKey, const QString& password, QByteArray& encryptedOut) {
+    EVP_PKEY* pkey = reinterpret_cast<EVP_PKEY*>(evpPrivKey);
+    if (!pkey) return false;
+    
+    // Serialize private key to PEM format
+    BIO* bio = BIO_new(BIO_s_mem());
+    if (!bio) return false;
+    
+    if (PEM_write_bio_PrivateKey(bio, pkey, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
+        BIO_free(bio);
+        return false;
+    }
+    
+    BUF_MEM* bufMem;
+    BIO_get_mem_ptr(bio, &bufMem);
+    QByteArray plainKey(reinterpret_cast<const char*>(bufMem->data), bufMem->length);
+    BIO_free(bio);
+    
+    // Generate random salt
+    QByteArray salt = randomBytes(16);
+    if (salt.size() != 16) return false;
+    
+    // Derive encryption key from password
+    QByteArray key = deriveKeyFromPassword(password, salt);
+    if (key.isEmpty()) return false;
+    
+    // Encrypt private key with AES-256-GCM
+    QByteArray nonce = randomBytes(12);
+    if (nonce.size() != 12) return false;
+    
+    QByteArray ciphertext, tag;
+    if (!aesGcmEncrypt(plainKey, key, nonce, ciphertext, tag)) {
+        return false;
+    }
+    
+    // Package: [salt(16)][nonce(12)][tag(16)][ciphertext]
+    encryptedOut.clear();
+    encryptedOut.append(salt);
+    encryptedOut.append(nonce);
+    encryptedOut.append(tag);
+    encryptedOut.append(ciphertext);
+    
+    return true;
+}
+
+// Decrypt private key with password-derived key
+bool CryptoService::decryptPrivateKeyWithPassword(const QByteArray& encrypted, const QString& password, void** evpPkeyOut) {
+    *evpPkeyOut = nullptr;
+    
+    if (encrypted.size() < 44) return false; // Need at least salt(16) + nonce(12) + tag(16) = 44 bytes
+    
+    // Extract components
+    QByteArray salt = encrypted.mid(0, 16);
+    QByteArray nonce = encrypted.mid(16, 12);
+    QByteArray tag = encrypted.mid(28, 16);
+    QByteArray ciphertext = encrypted.mid(44);
+    
+    // Derive encryption key from password
+    QByteArray key = deriveKeyFromPassword(password, salt);
+    if (key.isEmpty()) return false;
+    
+    // Decrypt private key
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) return false;
+    
+    bool ok = false;
+    QByteArray plainKey;
+    plainKey.resize(ciphertext.size());
+    
+    do {
+        if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) break;
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, nonce.size(), nullptr) != 1) break;
+        if (EVP_DecryptInit_ex(ctx, nullptr, nullptr,
+                               reinterpret_cast<const unsigned char*>(key.constData()),
+                               reinterpret_cast<const unsigned char*>(nonce.constData())) != 1) break;
+        
+        int outLen = 0, total = 0;
+        if (EVP_DecryptUpdate(ctx,
+                              reinterpret_cast<unsigned char*>(plainKey.data()), &outLen,
+                              reinterpret_cast<const unsigned char*>(ciphertext.constData()),
+                              ciphertext.size()) != 1) break;
+        total = outLen;
+        
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, tag.data()) != 1) break;
+        
+        if (EVP_DecryptFinal_ex(ctx,
+                                reinterpret_cast<unsigned char*>(plainKey.data()) + total, &outLen) != 1) break;
+        total += outLen;
+        plainKey.resize(total);
+        
+        // Parse PEM private key
+        BIO* bio = BIO_new_mem_buf(plainKey.data(), plainKey.size());
+        if (!bio) break;
+        
+        EVP_PKEY* pkey = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
+        BIO_free(bio);
+        
+        if (!pkey) break;
+        
+        *evpPkeyOut = pkey;
+        ok = true;
+    } while(false);
+    
+    EVP_CIPHER_CTX_free(ctx);
+    return ok;
+}
+
+// Load and decrypt private key
+bool CryptoService::loadPrivateKey(const QString& encPath, const QString& password, void** evpPkeyOut) {
+    *evpPkeyOut = nullptr;
+    
+    QByteArray encrypted = readAll(encPath);
+    if (encrypted.isEmpty()) return false;
+    
+    return decryptPrivateKeyWithPassword(encrypted, password, evpPkeyOut);
+}
+
+// Generate RSA-2048 key pair and encrypt private key with password
+bool CryptoService::generateKeyPair(const QString& password, const QString& keyDir) {
+    // Create key directory if it doesn't exist
+    QDir dir(keyDir);
+    if (!dir.exists()) {
+        if (!dir.mkpath(".")) {
+            return false;
+        }
+    }
+    
+    // Generate RSA-2048 key pair
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
+    if (!ctx) return false;
+    
+    bool ok = false;
+    EVP_PKEY* pkey = nullptr;
+    
+    do {
+        if (EVP_PKEY_keygen_init(ctx) != 1) break;
+        if (EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 2048) <= 0) break;
+        if (EVP_PKEY_keygen(ctx, &pkey) != 1) break;
+        
+        // Save public key
+        BIO* bio = BIO_new_file(dir.filePath("rsa_public_key.pem").toLocal8Bit().constData(), "w");
+        if (!bio) break;
+        
+        if (PEM_write_bio_PUBKEY(bio, pkey) != 1) {
+            BIO_free(bio);
+            break;
+        }
+        BIO_free(bio);
+        
+        // Encrypt and save private key
+        QByteArray encrypted;
+        if (!encryptPrivateKeyWithPassword(pkey, password, encrypted)) {
+            break;
+        }
+        
+        if (!writeAll(dir.filePath("rsa_private_key.enc"), encrypted)) {
+            break;
+        }
+        
+        ok = true;
+    } while(false);
+    
+    if (pkey) {
+        EVP_PKEY_free(pkey);
+    }
+    EVP_PKEY_CTX_free(ctx);
+    
+    return ok;
 }

@@ -334,6 +334,21 @@ int main(int argc, char *argv[])
     QString sessionPassword = loginDialog.password();
     // Now you can use sessionPassword for encryption/decryption operations
 
+    // Initialize RSA keys if they don't exist
+    QString keyDir = appDataDir + "/.medical_wallet_keys";
+    QDir keyDirObj(keyDir);
+    if (!keyDirObj.exists()) {
+        keyDirObj.mkpath(".");
+    }
+    
+    if (!CryptoService::keysExist(keyDir)) {
+        if (!CryptoService::generateKeyPair(sessionPassword, keyDir)) {
+            QMessageBox::critical(nullptr, "Error", 
+                "Failed to generate encryption keys. The application cannot continue.");
+            return 1;
+        }
+    }
+
     MedicalRecordWallet window(sessionPassword);
     window.show();
     
