@@ -24,6 +24,8 @@
 #include <QStandardPaths>
 #include <QFile>
 #include <QTextStream>
+#include <QJsonObject>
+#include <QJsonDocument>
 
 
 class MedicalRecordWallet : public QMainWindow
@@ -65,6 +67,9 @@ public:
         setWindowTitle("Medical Records Wallet - Secure File Encryption");
         setMinimumSize(800, 600);
         resize(1000, 700);
+        
+        // Load existing encrypted files from disk
+        loadFilesFromDisk();
     }
 
 private:
@@ -194,6 +199,84 @@ private:
         
         // Set main window background
         setStyleSheet("QMainWindow { background-color: #ecf0f1; }");
+    }
+    
+    void loadFilesFromDisk()
+    {
+        // Scan encrypted_files directory for .mrw files
+        QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QDir encDir(appDataDir + "/encrypted_files");
+        
+        if (!encDir.exists()) {
+            fileCountLabel->setText("No files stored.");
+            return;
+        }
+        
+        // Find all .mrw files
+        QStringList filters;
+        filters << "*.mrw";
+        QFileInfoList fileList = encDir.entryInfoList(filters, QDir::Files);
+        
+        // Add each file to the list widget
+        for (const QFileInfo& fileInfo : fileList) {
+            QString encryptedPath = fileInfo.absoluteFilePath();
+            
+            // Try to extract original filename from JSON header
+            QString displayName = extractOriginalFilename(encryptedPath);
+            if (displayName.isEmpty()) {
+                // Fallback to filename without .mrw extension
+                displayName = fileInfo.baseName();
+            }
+            
+            QListWidgetItem *item = new QListWidgetItem();
+            item->setText(displayName + " (encrypted)");
+            item->setData(Qt::UserRole, encryptedPath);
+            fileListWidget->addItem(item);
+        }
+        
+        // Update file count
+        int count = fileListWidget->count();
+        fileCountLabel->setText(count > 0 ? QString("Total encrypted files: %1").arg(count) : "No files stored.");
+    }
+    
+    QString extractOriginalFilename(const QString& encryptedPath)
+    {
+        // Try to read and parse the JSON header to get original filename
+        QFile file(encryptedPath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            return QString();
+        }
+        
+        // Read first 4 bytes (header length)
+        QByteArray headerLenBytes = file.read(4);
+        if (headerLenBytes.size() != 4) {
+            file.close();
+            return QString();
+        }
+        
+        // Parse header length (big-endian)
+        quint32 headerLen = (static_cast<quint32>(static_cast<unsigned char>(headerLenBytes[0])) << 24) |
+                            (static_cast<quint32>(static_cast<unsigned char>(headerLenBytes[1])) << 16) |
+                            (static_cast<quint32>(static_cast<unsigned char>(headerLenBytes[2])) << 8) |
+                            static_cast<quint32>(static_cast<unsigned char>(headerLenBytes[3]));
+        
+        // Read JSON header
+        QByteArray headerBytes = file.read(static_cast<int>(headerLen));
+        file.close();
+        
+        if (headerBytes.size() != static_cast<int>(headerLen)) {
+            return QString();
+        }
+        
+        // Parse JSON
+        QJsonParseError error;
+        QJsonDocument doc = QJsonDocument::fromJson(headerBytes, &error);
+        if (error.error != QJsonParseError::NoError || !doc.isObject()) {
+            return QString();
+        }
+        
+        QJsonObject hdr = doc.object();
+        return hdr["origName"].toString();
     }
 
 private slots:
@@ -330,10 +413,23 @@ private slots:
         
         int ret = QMessageBox::question(this, "Delete File", "Are you sure you want to delete this file?", QMessageBox::Yes | QMessageBox::No);
         if (ret == QMessageBox::Yes) {
+            QString encryptedPath = currentItem->data(Qt::UserRole).toString();
+            
+            // Delete the encrypted file from disk
+            if (QFile::exists(encryptedPath)) {
+                if (!QFile::remove(encryptedPath)) {
+                    QMessageBox::warning(this, "Delete Failed", "Could not delete the encrypted file from disk.");
+                    return;
+                }
+            }
+            
+            // Remove from list widget
             delete fileListWidget->takeItem(fileListWidget->row(currentItem));
             
             int count = fileListWidget->count();
-            fileCountLabel->setText(count > 0 ? QString("Total files: %1").arg(count) : "No files stored.");
+            fileCountLabel->setText(count > 0 ? QString("Total encrypted files: %1").arg(count) : "No files stored.");
+            
+            QMessageBox::information(this, "Success", "File deleted successfully.");
         }
     }
     
