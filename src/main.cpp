@@ -23,6 +23,9 @@
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QFile>
+#include <QTextStream>
+#include <QJsonObject>
+#include <QJsonDocument>
 
 
 class MedicalRecordWallet : public QMainWindow
@@ -64,6 +67,9 @@ public:
         setWindowTitle("Medical Records Wallet - Secure File Encryption");
         setMinimumSize(800, 600);
         resize(1000, 700);
+        
+        // Load existing encrypted files from disk
+        loadFilesFromDisk();
     }
 
 private:
@@ -194,6 +200,84 @@ private:
         // Set main window background
         setStyleSheet("QMainWindow { background-color: #ecf0f1; }");
     }
+    
+    void loadFilesFromDisk()
+    {
+        // Scan encrypted_files directory for .mrw files
+        QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QDir encDir(appDataDir + "/encrypted_files");
+        
+        if (!encDir.exists()) {
+            fileCountLabel->setText("No files stored.");
+            return;
+        }
+        
+        // Find all .mrw files
+        QStringList filters;
+        filters << "*.mrw";
+        QFileInfoList fileList = encDir.entryInfoList(filters, QDir::Files);
+        
+        // Add each file to the list widget
+        for (const QFileInfo& fileInfo : fileList) {
+            QString encryptedPath = fileInfo.absoluteFilePath();
+            
+            // Try to extract original filename from JSON header
+            QString displayName = extractOriginalFilename(encryptedPath);
+            if (displayName.isEmpty()) {
+                // Fallback to filename without .mrw extension
+                displayName = fileInfo.baseName();
+            }
+            
+            QListWidgetItem *item = new QListWidgetItem();
+            item->setText(displayName + " (encrypted)");
+            item->setData(Qt::UserRole, encryptedPath);
+            fileListWidget->addItem(item);
+        }
+        
+        // Update file count
+        int count = fileListWidget->count();
+        fileCountLabel->setText(count > 0 ? QString("Total encrypted files: %1").arg(count) : "No files stored.");
+    }
+    
+    QString extractOriginalFilename(const QString& encryptedPath)
+    {
+        // Try to read and parse the JSON header to get original filename
+        QFile file(encryptedPath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            return QString();
+        }
+        
+        // Read first 4 bytes (header length)
+        QByteArray headerLenBytes = file.read(4);
+        if (headerLenBytes.size() != 4) {
+            file.close();
+            return QString();
+        }
+        
+        // Parse header length (big-endian)
+        quint32 headerLen = (static_cast<quint32>(static_cast<unsigned char>(headerLenBytes[0])) << 24) |
+                            (static_cast<quint32>(static_cast<unsigned char>(headerLenBytes[1])) << 16) |
+                            (static_cast<quint32>(static_cast<unsigned char>(headerLenBytes[2])) << 8) |
+                            static_cast<quint32>(static_cast<unsigned char>(headerLenBytes[3]));
+        
+        // Read JSON header
+        QByteArray headerBytes = file.read(static_cast<int>(headerLen));
+        file.close();
+        
+        if (headerBytes.size() != static_cast<int>(headerLen)) {
+            return QString();
+        }
+        
+        // Parse JSON
+        QJsonParseError error;
+        QJsonDocument doc = QJsonDocument::fromJson(headerBytes, &error);
+        if (error.error != QJsonParseError::NoError || !doc.isObject()) {
+            return QString();
+        }
+        
+        QJsonObject hdr = doc.object();
+        return hdr["origName"].toString();
+    }
 
 private slots:
     void uploadFile()
@@ -204,30 +288,23 @@ private slots:
         }
         QFileInfo fileInfo(inputPath);
 
-        //Decides where encrypted files will be stored
-        QDir walletDir(QDir::homePath() + "/MedicalWalletEncrypted");
-        if (!walletDir.exists()){
-            walletDir.mkpath(".");
+        // Use standard application data directory for storage
+        QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QDir dir(appDataDir);
+        if (!dir.exists()) {
+            dir.mkpath(".");
         }
-        //Encrypted output file path
-        QString outputPath = walletDir.filePath(fileInfo.fileName() + ".enc");
 
-        //Path to the RSA public key
-        QString publicKeyPath = QCoreApplication::applicationDirPath() + "/public_key.pem";
+        // Call CryptoService to encrypt (it handles file creation and returns output path)
+        QString outputPath = CryptoService::encryptFile(inputPath, sessionPassword, appDataDir);
+        
+        // If CryptoService returns empty string, encryption failed
+        if (outputPath.isEmpty()) {
+            QMessageBox::warning(this, "Encryption Failed", "Failed to encrypt file. Please check that RSA keys exist.");
+            return;
+        }
 
-       
-       
-	//calling CryptoService to encrypt
-	QString error = cryptoService.encryptFile(inputPath, outputPath, publicKeyPath);
-	 
-	//If CryptoService returns a non-empty string, treat it as an error message
-	
-	if (!error.isEmpty()) {
-    		QMessageBox::warning(this, "Encryption Failed", error);
-    		return;
-}
-
-        //On success, add the encrypted file to the list
+        // On success, add the encrypted file to the list
         QListWidgetItem *item = new QListWidgetItem();
         item->setText(fileInfo.fileName() + " (encrypted)");
         item->setData(Qt::UserRole, outputPath); // store encrypted file path
@@ -248,42 +325,82 @@ private slots:
             return;
         }
         
-        QString fileName = currentItem->data(Qt::UserRole).toString();
-        QFileInfo fileInfo(fileName);
+        QString encryptedPath = currentItem->data(Qt::UserRole).toString();
+        QFileInfo fileInfo(encryptedPath);
         
-        if (fileInfo.exists()) {
-            // Open the file with the system's default application
-            bool success = QDesktopServices::openUrl(QUrl::fromLocalFile(fileName));
-            
-            if (success) {
-                fileInfoLabel->setText(QString("File: %1 (%2 bytes) - Opened with default application").arg(fileInfo.fileName()).arg(fileInfo.size()));
-                filePreview->setPlainText(QString("File opened with default application.\n\n"
-                                                "File: %1\n"
-                                                "Size: %2 bytes\n"
-                                                "Type: %3 file\n\n"
-                                                "The file should have opened in your default application for this file type.")
-                                                .arg(fileInfo.fileName())
-                                                .arg(fileInfo.size())
-                                                .arg(fileInfo.suffix().toUpper()));
-            } else {
-                QMessageBox::warning(this, "Error", "Could not open the file. The file may not exist or there may be no default application associated with this file type.");
-                fileInfoLabel->setText(QString("File: %1 (%2 bytes) - Failed to open").arg(fileInfo.fileName()).arg(fileInfo.size()));
-                filePreview->setPlainText(QString("Failed to open file with default application.\n\n"
-                                                "File: %1\n"
-                                                "Size: %2 bytes\n"
-                                                "Type: %3 file\n\n"
-                                                "Please check if the file exists and if you have a default application installed for this file type.")
-                                                .arg(fileInfo.fileName())
-                                                .arg(fileInfo.size())
-                                                .arg(fileInfo.suffix().toUpper()));
-            }
-        } else {
-            QMessageBox::warning(this, "File Not Found", "The selected file no longer exists at the original location.");
+        if (!fileInfo.exists()) {
+            QMessageBox::warning(this, "File Not Found", "The selected encrypted file no longer exists.");
             fileInfoLabel->setText(QString("File: %1 - Not found").arg(currentItem->text()));
-            filePreview->setPlainText(QString("File not found.\n\n"
-                                            "The file was uploaded but the original file may have been moved or deleted.\n"
-                                            "File: %1").arg(currentItem->text()));
+            filePreview->setPlainText(QString("File not found.\n\nThe encrypted file may have been moved or deleted.\nFile: %1").arg(currentItem->text()));
+            return;
         }
+        
+        // Decrypt the file
+        QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QString decryptedPath = CryptoService::decryptFile(encryptedPath, sessionPassword, appDataDir);
+        
+        if (decryptedPath.isEmpty()) {
+            QMessageBox::warning(this, "Decryption Failed", 
+                "Failed to decrypt the file. This could be due to:\n"
+                "- Incorrect password\n"
+                "- Corrupted encrypted file\n"
+                "- Missing RSA private key");
+            fileInfoLabel->setText(QString("File: %1 - Decryption failed").arg(currentItem->text()));
+            filePreview->setPlainText(QString("Decryption failed.\n\n"
+                                            "Could not decrypt the file. Please verify your password is correct.\n"
+                                            "File: %1").arg(currentItem->text()));
+            return;
+        }
+        
+        // Read and display decrypted content in preview
+        QFile file(decryptedPath);
+        QFileInfo decryptedInfo(decryptedPath);
+        bool isTextFile = false;
+        QString content;
+        qint64 fileSize = 0;
+        
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            content = in.readAll();
+            file.close();
+            isTextFile = true;
+            fileSize = content.size();
+        } else if (file.open(QIODevice::ReadOnly)) {
+            // Binary file - get size
+            fileSize = file.size();
+            file.close();
+        } else {
+            QMessageBox::warning(this, "Error", "Could not read decrypted file.");
+            QFile::remove(decryptedPath);
+            return;
+        }
+        
+        // Display in preview
+        if (isTextFile) {
+            fileInfoLabel->setText(QString("File: %1 (Decrypted)").arg(currentItem->text()));
+            filePreview->setPlainText(content);
+        } else {
+            fileInfoLabel->setText(QString("File: %1 (Decrypted - Binary)").arg(currentItem->text()));
+            filePreview->setPlainText(QString("File decrypted successfully.\n\n"
+                                            "File: %1\n"
+                                            "Size: %2 bytes\n"
+                                            "Type: Binary file\n\n"
+                                            "This appears to be a binary file. Content cannot be displayed as text.\n"
+                                            "The file has been opened with your default application.")
+                                            .arg(currentItem->text())
+                                            .arg(fileSize));
+        }
+        
+        // Also open the file with the system's default application
+        bool opened = QDesktopServices::openUrl(QUrl::fromLocalFile(decryptedPath));
+        if (!opened) {
+            QMessageBox::information(this, "Preview Only", 
+                "File decrypted and shown in preview.\n\n"
+                "Could not open with default application. The file is available at:\n" + decryptedPath);
+        }
+        
+        // Note: We don't delete the temp file immediately so the external application can access it
+        // The OS will clean up temp files on reboot, or you can add cleanup on app exit
     }
     
     void deleteFile()
@@ -296,10 +413,23 @@ private slots:
         
         int ret = QMessageBox::question(this, "Delete File", "Are you sure you want to delete this file?", QMessageBox::Yes | QMessageBox::No);
         if (ret == QMessageBox::Yes) {
+            QString encryptedPath = currentItem->data(Qt::UserRole).toString();
+            
+            // Delete the encrypted file from disk
+            if (QFile::exists(encryptedPath)) {
+                if (!QFile::remove(encryptedPath)) {
+                    QMessageBox::warning(this, "Delete Failed", "Could not delete the encrypted file from disk.");
+                    return;
+                }
+            }
+            
+            // Remove from list widget
             delete fileListWidget->takeItem(fileListWidget->row(currentItem));
             
             int count = fileListWidget->count();
-            fileCountLabel->setText(count > 0 ? QString("Total files: %1").arg(count) : "No files stored.");
+            fileCountLabel->setText(count > 0 ? QString("Total encrypted files: %1").arg(count) : "No files stored.");
+            
+            QMessageBox::information(this, "Success", "File deleted successfully.");
         }
     }
     
@@ -340,6 +470,21 @@ int main(int argc, char *argv[])
 
     QString sessionPassword = loginDialog.password();
     // Now you can use sessionPassword for encryption/decryption operations
+
+    // Initialize RSA keys if they don't exist
+    QString keyDir = appDataDir + "/.medical_wallet_keys";
+    QDir keyDirObj(keyDir);
+    if (!keyDirObj.exists()) {
+        keyDirObj.mkpath(".");
+    }
+    
+    if (!CryptoService::keysExist(keyDir)) {
+        if (!CryptoService::generateKeyPair(sessionPassword, keyDir)) {
+            QMessageBox::critical(nullptr, "Error", 
+                "Failed to generate encryption keys. The application cannot continue.");
+            return 1;
+        }
+    }
 
     MedicalRecordWallet window(sessionPassword);
     window.show();

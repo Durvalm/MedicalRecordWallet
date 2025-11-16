@@ -1,0 +1,18 @@
+# List all encrypted files
+ls -lh ~/Library/Application\ Support/Medical\ Records\ Inc./Medical\ Records\ Wallet/encrypted_files/
+
+
+# (replace file name) View first bytes of a specific file (shows header + JSON start):
+hexdump -C ~/Library/Application\ Support/Medical\ Records\ Inc./Medical\ Records\ Wallet/encrypted_files/resume_2026_.pdf.mrw | head -30
+
+
+# Show where keys are stored
+ls -la ~/Library/Application\ Support/Medical\ Records\ Inc./Medical\ Records\ Wallet/.medical_wallet_keys/
+
+
+# Show public key (readable)
+cat ~/Library/Application\ Support/Medical\ Records\ Inc./Medical\ Records\ Wallet/.medical_wallet_keys/rsa_public_key.pem
+
+
+# Show private key is encrypted (binary/encrypted)
+file ~/Library/Application\ Support/Medical\ Records\ Inc./Medical\ Records\ Wallet/.medical_wallet_keys/rsa_private_key.enc
