@@ -7,6 +7,8 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QStandardPaths>
+#include <QByteArray>
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -78,6 +80,77 @@ QString CryptoService::encryptFile(const QString& inputPath,
     if (!writeAll(outPath, out)) return {};
 
     return outPath;
+}
+
+QString CryptoService::decryptFile(const QString& encryptedPath,
+                                   const QString& password,
+                                   const QString& projectRoot)
+{
+    // 1) Read encrypted file
+    QByteArray encrypted = readAll(encryptedPath);
+    if (encrypted.size() < 4) return {}; // Need at least header length
+
+    // 2) Parse header length (4 bytes big-endian)
+    quint32 headerLen = (static_cast<quint32>(static_cast<unsigned char>(encrypted[0])) << 24) |
+                        (static_cast<quint32>(static_cast<unsigned char>(encrypted[1])) << 16) |
+                        (static_cast<quint32>(static_cast<unsigned char>(encrypted[2])) << 8) |
+                        static_cast<quint32>(static_cast<unsigned char>(encrypted[3]));
+
+    if (encrypted.size() < 4 + static_cast<int>(headerLen)) return {};
+
+    // 3) Parse JSON header
+    QByteArray headerBytes = encrypted.mid(4, static_cast<int>(headerLen));
+    QJsonParseError error;
+    QJsonDocument doc = QJsonDocument::fromJson(headerBytes, &error);
+    if (error.error != QJsonParseError::NoError || !doc.isObject()) return {};
+
+    QJsonObject hdr = doc.object();
+    QByteArray encKeyB64 = hdr["encKey"].toString().toLatin1();
+    QByteArray nonceB64 = hdr["nonce"].toString().toLatin1();
+    QByteArray tagB64 = hdr["tag"].toString().toLatin1();
+
+    if (encKeyB64.isEmpty() || nonceB64.isEmpty() || tagB64.isEmpty()) return {};
+
+    // Decode base64
+    QByteArray encKey = QByteArray::fromBase64(encKeyB64);
+    QByteArray nonce = QByteArray::fromBase64(nonceB64);
+    QByteArray tag = QByteArray::fromBase64(tagB64);
+
+    // 4) Load and decrypt RSA private key
+    const QString privKeyPath = QDir(projectRoot).filePath(".medical_wallet_keys/rsa_private_key.enc");
+    void* evpPriv = nullptr;
+    if (!loadPrivateKey(privKeyPath, password, &evpPriv)) {
+        return {}; // Wrong password or key file missing
+    }
+
+    // 5) Decrypt AES key with RSA private key
+    QByteArray aesKey = rsaOaepUnwrapKey(evpPriv, encKey);
+    EVP_PKEY_free(reinterpret_cast<EVP_PKEY*>(evpPriv));
+    if (aesKey.size() != 32) return {}; // AES-256 key must be 32 bytes
+
+    // 6) Extract ciphertext
+    QByteArray ciphertext = encrypted.mid(4 + static_cast<int>(headerLen));
+
+    // 7) Decrypt file content with AES-256-GCM
+    QByteArray plaintext;
+    if (!aesGcmDecrypt(ciphertext, aesKey, nonce, tag, plaintext)) {
+        return {}; // Decryption failed (wrong key or corrupted data)
+    }
+
+    // 8) Save to temporary file
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QFileInfo fi(encryptedPath);
+    QString origName = hdr["origName"].toString();
+    if (origName.isEmpty()) {
+        origName = fi.baseName(); // Fallback to encrypted filename without .mrw
+    }
+    
+    QString tempPath = QDir(tempDir).filePath("mrw_decrypt_" + origName);
+    if (!writeAll(tempPath, plaintext)) {
+        return {};
+    }
+
+    return tempPath;
 }
 
 bool CryptoService::loadPublicKey(const QString& pemPath, void** evpPkeyOut) {
@@ -152,6 +225,50 @@ bool CryptoService::aesGcmEncrypt(const QByteArray& plaintext,
     return ok;
 }
 
+bool CryptoService::aesGcmDecrypt(const QByteArray& ciphertext,
+                                  const QByteArray& key32,
+                                  const QByteArray& nonce12,
+                                  const QByteArray& tag16,
+                                  QByteArray& plaintextOut)
+{
+    if (key32.size() != 32 || nonce12.size() <= 0 || tag16.size() != 16) return false;
+
+    plaintextOut.resize(ciphertext.size());
+
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) return false;
+
+    bool ok = false;
+    do {
+        if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) break;
+
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, nonce12.size(), nullptr) != 1) break;
+
+        if (EVP_DecryptInit_ex(ctx, nullptr, nullptr,
+                               reinterpret_cast<const unsigned char*>(key32.constData()),
+                               reinterpret_cast<const unsigned char*>(nonce12.constData())) != 1) break;
+
+        int outLen = 0, total = 0;
+        if (EVP_DecryptUpdate(ctx,
+                              reinterpret_cast<unsigned char*>(plaintextOut.data()), &outLen,
+                              reinterpret_cast<const unsigned char*>(ciphertext.constData()),
+                              ciphertext.size()) != 1) break;
+        total = outLen;
+
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(tag16.constData()))) != 1) break;
+
+        if (EVP_DecryptFinal_ex(ctx,
+                                reinterpret_cast<unsigned char*>(plaintextOut.data()) + total, &outLen) != 1) break;
+        total += outLen;
+        plaintextOut.resize(total);
+
+        ok = true;
+    } while(false);
+
+    EVP_CIPHER_CTX_free(ctx);
+    return ok;
+}
+
 QByteArray CryptoService::rsaOaepWrapKey(void* evpPubKey, const QByteArray& key32) {
     EVP_PKEY* pkey = reinterpret_cast<EVP_PKEY*>(evpPubKey);
     if (!pkey || key32.size() != 32) return {};
@@ -177,6 +294,40 @@ QByteArray CryptoService::rsaOaepWrapKey(void* evpPubKey, const QByteArray& key3
                          reinterpret_cast<unsigned char*>(out.data()), &outLen,
                          reinterpret_cast<const unsigned char*>(key32.constData()),
                          static_cast<size_t>(key32.size())) != 1) {
+        EVP_PKEY_CTX_free(pctx);
+        return {};
+    }
+
+    out.resize(static_cast<int>(outLen));
+    EVP_PKEY_CTX_free(pctx);
+    return out;
+}
+
+QByteArray CryptoService::rsaOaepUnwrapKey(void* evpPrivKey, const QByteArray& encryptedKey) {
+    EVP_PKEY* pkey = reinterpret_cast<EVP_PKEY*>(evpPrivKey);
+    if (!pkey || encryptedKey.isEmpty()) return {};
+
+    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new(pkey, nullptr);
+    if (!pctx) return {};
+
+    QByteArray out;
+    if (EVP_PKEY_decrypt_init(pctx) != 1) { EVP_PKEY_CTX_free(pctx); return {}; }
+    if (EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_OAEP_PADDING) != 1) { EVP_PKEY_CTX_free(pctx); return {}; }
+    if (EVP_PKEY_CTX_set_rsa_oaep_md(pctx, EVP_sha256()) != 1) { EVP_PKEY_CTX_free(pctx); return {}; }
+
+    size_t outLen = 0;
+    if (EVP_PKEY_decrypt(pctx, nullptr, &outLen,
+                         reinterpret_cast<const unsigned char*>(encryptedKey.constData()),
+                         static_cast<size_t>(encryptedKey.size())) != 1) {
+        EVP_PKEY_CTX_free(pctx);
+        return {};
+    }
+
+    out.resize(static_cast<int>(outLen));
+    if (EVP_PKEY_decrypt(pctx,
+                         reinterpret_cast<unsigned char*>(out.data()), &outLen,
+                         reinterpret_cast<const unsigned char*>(encryptedKey.constData()),
+                         static_cast<size_t>(encryptedKey.size())) != 1) {
         EVP_PKEY_CTX_free(pctx);
         return {};
     }

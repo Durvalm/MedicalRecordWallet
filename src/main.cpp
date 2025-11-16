@@ -23,6 +23,7 @@
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QFile>
+#include <QTextStream>
 
 
 class MedicalRecordWallet : public QMainWindow
@@ -241,42 +242,82 @@ private slots:
             return;
         }
         
-        QString fileName = currentItem->data(Qt::UserRole).toString();
-        QFileInfo fileInfo(fileName);
+        QString encryptedPath = currentItem->data(Qt::UserRole).toString();
+        QFileInfo fileInfo(encryptedPath);
         
-        if (fileInfo.exists()) {
-            // Open the file with the system's default application
-            bool success = QDesktopServices::openUrl(QUrl::fromLocalFile(fileName));
-            
-            if (success) {
-                fileInfoLabel->setText(QString("File: %1 (%2 bytes) - Opened with default application").arg(fileInfo.fileName()).arg(fileInfo.size()));
-                filePreview->setPlainText(QString("File opened with default application.\n\n"
-                                                "File: %1\n"
-                                                "Size: %2 bytes\n"
-                                                "Type: %3 file\n\n"
-                                                "The file should have opened in your default application for this file type.")
-                                                .arg(fileInfo.fileName())
-                                                .arg(fileInfo.size())
-                                                .arg(fileInfo.suffix().toUpper()));
-            } else {
-                QMessageBox::warning(this, "Error", "Could not open the file. The file may not exist or there may be no default application associated with this file type.");
-                fileInfoLabel->setText(QString("File: %1 (%2 bytes) - Failed to open").arg(fileInfo.fileName()).arg(fileInfo.size()));
-                filePreview->setPlainText(QString("Failed to open file with default application.\n\n"
-                                                "File: %1\n"
-                                                "Size: %2 bytes\n"
-                                                "Type: %3 file\n\n"
-                                                "Please check if the file exists and if you have a default application installed for this file type.")
-                                                .arg(fileInfo.fileName())
-                                                .arg(fileInfo.size())
-                                                .arg(fileInfo.suffix().toUpper()));
-            }
-        } else {
-            QMessageBox::warning(this, "File Not Found", "The selected file no longer exists at the original location.");
+        if (!fileInfo.exists()) {
+            QMessageBox::warning(this, "File Not Found", "The selected encrypted file no longer exists.");
             fileInfoLabel->setText(QString("File: %1 - Not found").arg(currentItem->text()));
-            filePreview->setPlainText(QString("File not found.\n\n"
-                                            "The file was uploaded but the original file may have been moved or deleted.\n"
-                                            "File: %1").arg(currentItem->text()));
+            filePreview->setPlainText(QString("File not found.\n\nThe encrypted file may have been moved or deleted.\nFile: %1").arg(currentItem->text()));
+            return;
         }
+        
+        // Decrypt the file
+        QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QString decryptedPath = CryptoService::decryptFile(encryptedPath, sessionPassword, appDataDir);
+        
+        if (decryptedPath.isEmpty()) {
+            QMessageBox::warning(this, "Decryption Failed", 
+                "Failed to decrypt the file. This could be due to:\n"
+                "- Incorrect password\n"
+                "- Corrupted encrypted file\n"
+                "- Missing RSA private key");
+            fileInfoLabel->setText(QString("File: %1 - Decryption failed").arg(currentItem->text()));
+            filePreview->setPlainText(QString("Decryption failed.\n\n"
+                                            "Could not decrypt the file. Please verify your password is correct.\n"
+                                            "File: %1").arg(currentItem->text()));
+            return;
+        }
+        
+        // Read and display decrypted content in preview
+        QFile file(decryptedPath);
+        QFileInfo decryptedInfo(decryptedPath);
+        bool isTextFile = false;
+        QString content;
+        qint64 fileSize = 0;
+        
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            content = in.readAll();
+            file.close();
+            isTextFile = true;
+            fileSize = content.size();
+        } else if (file.open(QIODevice::ReadOnly)) {
+            // Binary file - get size
+            fileSize = file.size();
+            file.close();
+        } else {
+            QMessageBox::warning(this, "Error", "Could not read decrypted file.");
+            QFile::remove(decryptedPath);
+            return;
+        }
+        
+        // Display in preview
+        if (isTextFile) {
+            fileInfoLabel->setText(QString("File: %1 (Decrypted)").arg(currentItem->text()));
+            filePreview->setPlainText(content);
+        } else {
+            fileInfoLabel->setText(QString("File: %1 (Decrypted - Binary)").arg(currentItem->text()));
+            filePreview->setPlainText(QString("File decrypted successfully.\n\n"
+                                            "File: %1\n"
+                                            "Size: %2 bytes\n"
+                                            "Type: Binary file\n\n"
+                                            "This appears to be a binary file. Content cannot be displayed as text.\n"
+                                            "The file has been opened with your default application.")
+                                            .arg(currentItem->text())
+                                            .arg(fileSize));
+        }
+        
+        // Also open the file with the system's default application
+        bool opened = QDesktopServices::openUrl(QUrl::fromLocalFile(decryptedPath));
+        if (!opened) {
+            QMessageBox::information(this, "Preview Only", 
+                "File decrypted and shown in preview.\n\n"
+                "Could not open with default application. The file is available at:\n" + decryptedPath);
+        }
+        
+        // Note: We don't delete the temp file immediately so the external application can access it
+        // The OS will clean up temp files on reboot, or you can add cleanup on app exit
     }
     
     void deleteFile()
